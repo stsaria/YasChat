@@ -43,7 +43,7 @@ root:
     handlers: [console, file]""")
 
 from logging import getLogger, config
-logger = getLogger(__name__ )
+logger = getLogger(__name__)
 config.dictConfig(yaml.load(open("config/logging.yaml").read(), Loader=yaml.SafeLoader))
 os.makedirs("dbs", exist_ok=True)
 

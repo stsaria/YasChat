@@ -46,8 +46,14 @@ onceConnectedIpsLock = threading.Lock()
 stunInfo = {"natConeType":"", "stunIp":"", "stunPort":None}
 
 class Utils:
+    def removeDuplicates(dicts:list[dict], key:str):
+        seen = {}
+        for d in dicts:
+            seen[d[key]] = d
+        return list(seen.values())
     def checkAndMergeStunDatas(newPeerDs:list[dict]):
-        for newPeerD in newPeerDs:
+        okNewPeerDs:list[dict] = Utils.removeDuplicates(newPeerDs, "stunIp")
+        for newPeerD in okNewPeerDs:
             print(newPeerD["stunIp"])
             if Utils.isMyIp(newPeerD["stunIp"]):
                 continue
@@ -76,7 +82,7 @@ class Utils:
             return result != 0
     def checkPorts(x, y):
         for port in range(x, y+1):
-            if isPortAvailable(port):
+            if Utils.isPortAvailable(port):
                 return True
             else:
                 return False
@@ -161,10 +167,7 @@ class Server:
             cursor.execute("SELECT * FROM chats")
             chats = cursor.fetchall()
             chatsDs:list[dict] = []
-            for peer in random.sample(chats, min(len(chats), maxPeersLength)):
-                if peer[4]:
-                    if not isLocalIp:
-                        continue
+            for peer in random.sample(chats, min(len(chats), maxChatsLength)):
                 chatsDs.append({"stunIp": peer[1], "stunPort": peer[2], "natConeType": peer[3]})
             message = {
                 "m":"R",
@@ -197,6 +200,7 @@ class Server:
             cursor.execute("SELECT * FROM peers")
             peers = cursor.fetchall()
             peersDs:list[dict] = []
+            isLocalIp = Utils.isLocalIp(addr[0])
             for peer in random.sample(peers, min(len(peers), maxPeersLength)):
                 if peer[4]:
                     if not isLocalIp:
@@ -315,11 +319,10 @@ class Client:
                 res = sock.recvfrom(130*maxPeers+120)[0]
                 res = json.loads(base64.b64decode(res.decode("utf-8")))
                 print(res)
-                if res["m"] == "R" and res["r"] == "0":
+                if res["m"] == "R" and res["r"] == 0:
                     Utils.checkAndMergeStunDatas(res["c"]["peers"])
                     logger.debug(f"Get peers From:{ip}")
                 else:
-                    print("a")
                     logger.warning(f"Failed get peers From:{ip}")
             except Exception as e:
                 print(traceback.format_exc())
