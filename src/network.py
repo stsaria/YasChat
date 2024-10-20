@@ -75,7 +75,7 @@ class Utils:
                     continue
                 cursor.execute("DELETE FROM peers WHERE stunIp=?", (newPeerD["stunIp"],))
                 conn.commit()
-                cursor.execute("INSERT INTO peers (uuid, stunIp, stunPort, natConeType) VALUES (?, ?, ?, ?)",(str(uuid.uuid4()), newPeerD["stunIp"], newPeerD["stunPort"], newPeerD["natConeType"]))
+                cursor.execute("INSERT INTO peers (uuid, stunIp, stunPort, natConeType, isLocalIp) VALUES (?, ?, ?, ?, ?)",(str(uuid.uuid4()), newPeerD["stunIp"], newPeerD["stunPort"], newPeerD["natConeType"], 1 if Utils.isLocalIp(newPeerD["stunIp"]) else 0))
                 conn.commit()
     def isPortAvailable(port):
         with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
