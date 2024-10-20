@@ -54,7 +54,7 @@ class Utils:
     def checkAndMergeStunDatas(newPeerDs:list[dict]):
         okNewPeerDs:list[dict] = Utils.removeDuplicates(newPeerDs, "stunIp")
         for newPeerD in okNewPeerDs:
-            print(newPeerD["stunIp"])
+            print(newPeerD)
             if Utils.isMyIp(newPeerD["stunIp"]):
                 continue
             elif not (newPeerD["natConeType"] in ["Restricted Cone", "Full Cone"] or Utils.isLocalIp(newPeerD["stunIp"])):
@@ -319,14 +319,12 @@ class Client:
             try:
                 res = sock.recvfrom(130*maxPeers+120)[0]
                 res = json.loads(base64.b64decode(res.decode("utf-8")))
-                print(res)
                 if res["m"] == "R" and res["r"] == 0:
                     Utils.checkAndMergeStunDatas(res["c"]["peers"])
                     logger.debug(f"Get peers From:{ip}")
                 else:
                     logger.warning(f"Failed get peers From:{ip}")
             except Exception as e:
-                print(traceback.format_exc())
                 logger.error(f"Exception(get peers):{e}")
     def registerPeer(ip:str, port:int):
         with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as sock:
@@ -414,7 +412,6 @@ class Peer:
         while True:
             cursor.execute("SELECT * FROM peers")
             peers = cursor.fetchall()
-            print(peers)
             for server in settings.settings["bootstrapNodes"]:
                 Client.getPeers(server["ip"], server["port"])
             for peer in peers:
