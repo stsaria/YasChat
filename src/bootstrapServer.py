@@ -1,13 +1,4 @@
-import ipaddress
-import socket
-import json
-import base64
-import threading
-import uuid
-import sqlite3
-import yaml
-import struct
-import os
+import threading, ipaddress, sqlite3, socket, base64, json, uuid, yaml
 from logging import getLogger, config
 
 logger = getLogger(__name__)
