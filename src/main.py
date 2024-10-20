@@ -18,7 +18,7 @@ handlers:
         class: logging.handlers.RotatingFileHandler
         level: DEBUG
         formatter: detailed
-        filename: logs/TlelShopBot.log
+        filename: logs/YasChat.log
         maxBytes: 1048576
         backupCount: 3
 loggers:
