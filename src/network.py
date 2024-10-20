@@ -74,6 +74,7 @@ class Utils:
                     logger.error(f"Error in checkAndMergeStunDatas:{e}")
                     continue
                 cursor.execute("DELETE FROM peers WHERE stunIp=?", (newPeerD["stunIp"],))
+                conn.commit()
                 cursor.execute("INSERT INTO peers (uuid, stunIp, stunPort, natConeType) VALUES (?, ?, ?, ?)",(str(uuid.uuid4()), newPeerD["stunIp"], newPeerD["stunPort"], newPeerD["natConeType"]))
                 conn.commit()
     def isPortAvailable(port):

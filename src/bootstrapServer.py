@@ -92,6 +92,7 @@ class BootstrapServer:
             if Utils.checkConnection(stunIp, stunPort):
                 uuidValue = str(uuid.uuid4())
                 cursor.execute("DELETE FROM peers WHERE stunIp=?", (stunIp,))
+                conn.commit()
                 cursor.execute("INSERT INTO peers (uuid, stunIp, stunPort, natConeType, isLocalIp) VALUES (?, ?, ?, ?, ?)",(uuidValue, stunIp, stunPort, natConeType, 1 if isLocalIp else 0))
                 conn.commit()
                 message = {
