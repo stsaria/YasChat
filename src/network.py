@@ -33,7 +33,7 @@ cursor.execute("""
     CREATE TABLE IF NOT EXISTS peers (
         uuid TEXT PRIMARY KEY,
         stunIp TEXT NOT NULL,
-        stunPort TEXT NOT NULL,
+        stunPort INTEGER NOT NULL,
         natConeType TEXT NOT NULL,
         isLocalIp INTEGER NOT NULL
     )
@@ -413,6 +413,7 @@ class Peer:
         while True:
             cursor.execute("SELECT * FROM peers")
             peers = cursor.fetchall()
+            print(peers)
             for server in settings.settings["bootstrapNodes"]:
                 Client.getPeers(server["ip"], server["port"])
             for peer in peers:
