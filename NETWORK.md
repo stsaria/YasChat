@@ -95,7 +95,8 @@ YasChatのネットワークはP2Pで構成されています。
     "a":{
         "natConeType":"自分のNAT状況(文字列)(Restricted ConeまたはFull Cone)",
         "stunIp":"ピアリストに使われるStunIp(文字列)",
-        "stunPort":ピアリストに使われるStunPort(整数)
+        "stunPort":ピアリストに使われるStunPort(整数),
+        "sourcePort":サーバー自体のポート
     }
 }
 ```

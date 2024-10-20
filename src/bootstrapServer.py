@@ -78,15 +78,17 @@ class BootstrapServer:
         if message.get("m") == "r" and message.get("t") == "r" and message.get("d") == "i":
             self.registerPeer(message["a"], addr)
         elif message.get("m") == "g" and message.get("t") == "r" and message.get("d") == "i":
-            self.sendPeersList(addr)
+            self.sendPeersList(addr, message["a"]["maxPeersLength"])
     def registerPeer(self, peerData, addr):
         stunIp = peerData.get("stunIp")
         stunPort = peerData.get("stunPort")
         natConeType = peerData.get("natConeType")
+        sourcePort = peerData.get("sourcePort")
         isLocalIp = Utils.isLocalIp(addr[0])
-        if stunIp and stunPort and natConeType:
+        if stunIp and stunPort and natConeType and sourcePort:
             if addr[0] != peerData.get("stunIp") or isLocalIp:
                 stunIp = addr[0]
+                stunPort = sourcePort
             if Utils.checkConnection(stunIp, stunPort):
                 uuidValue = str(uuid.uuid4())
                 cursor.execute("INSERT INTO peers (uuid, stunIp, stunPort, natConeType, isLocalIp) VALUES (?, ?, ?, ?, ?)",(uuidValue, stunIp, stunPort, natConeType, 1 if isLocalIp else 0))
@@ -106,16 +108,16 @@ class BootstrapServer:
                     "c": {}
                 }
                 self.sendResponse(message, addr)
-    def sendPeersList(self, addr):
+    def sendPeersList(self, addr, maxPeersLength):
         cursor.execute("SELECT * FROM peers")
         peers = cursor.fetchall()
         peersData:list[dict] = []
         isLocalIp = Utils.isLocalIp(addr[0])
-        for peer in peers:
+        for peer in random.sample(peers, min(len(peers), maxPeersLength)):
             if peer[4]:
                 if not isLocalIp:
                     continue
-            peersData.append({"uuid": peer[0], "stunIp": peer[1], "stunPort": peer[2], "natConeType": peer[3]})
+            peersData.append({"stunIp": peer[1], "stunPort": peer[2], "natConeType": peer[3]})
         message = {
             "m": "R",
             "r": 0,

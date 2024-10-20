@@ -48,9 +48,10 @@ stunInfo = {"natConeType":"", "stunIp":"", "stunPort":None}
 class Utils:
     def checkAndMergeStunDatas(newPeerDs:list[dict]):
         for newPeerD in newPeerDs:
+            print(newPeerD["stunIp"])
             if Utils.isMyIp(newPeerD["stunIp"]):
                 continue
-            elif newPeerD["natConeType"] not in ["Restricted Cone", "Full Cone"]:
+            elif not (newPeerD["natConeType"] in ["Restricted Cone", "Full Cone"] or Utils.isLocalIp(newPeerD["stunIp"])):
                 continue
             with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as sock:
                 sock.settimeout(6)
@@ -58,8 +59,7 @@ class Utils:
                     message = {
                         "m":"p"
                     }
-                    sock.sendto(base64.b64encode(json.dumps(message).encode("utf-8")),
-                                (newPeerD["stunIp"], newPeerD["stunPort"]))
+                    sock.sendto(base64.b64encode(json.dumps(message).encode("utf-8")),(newPeerD["stunIp"], newPeerD["stunPort"]))
                     res = sock.recvfrom(1024)[0]
                     res = json.loads(base64.b64decode(res))
                     if not (res["m"] == "R" and res["r"] == 0):
@@ -70,13 +70,26 @@ class Utils:
                 cursor.execute("DELETE FROM peers WHERE stunIp=?", (newPeerD["stunIp"],))
                 cursor.execute("INSERT INTO peers (uuid, stunIp, stunPort, natConeType) VALUES (?, ?, ?, ?)",(str(uuid.uuid4()), newPeerD["stunIp"], newPeerD["stunPort"], newPeerD["natConeType"]))
                 conn.commit()
-    def getStun(ip:str, port:int):
+    def isPortAvailable(port):
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
+            result = sock.connect_ex(("127.0.0.1", port))
+            return result != 0
+    def checkPorts(x, y):
+        for port in range(x, y+1):
+            if isPortAvailable(port):
+                return True
+            else:
+                return False
+    def getStun(ip:str, port:int, sourcePort):
         try:
-            natType, stunIp, stunPort = stun.get_ip_info(stun_host=ip, stun_port=port)
+            sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+            sock.connect(("8.8.8.8", 80))
+            localIp = sock.getsockname()[0]
+            sock.close()
+            natType, stunIp, stunPort = stun.get_ip_info(source_ip=localIp, source_port=sourcePort, stun_host=ip, stun_port=port)
             print(f"{natType} - {stunIp}:{stunPort}")
             return natType, stunIp, stunPort
         except Exception as e:
-            print(traceback.format_exc())
             logger.error(f"Exception(get STUN): {e}")
         return None, None, None
     def checkConnection(stunIp, stunPort):
@@ -132,8 +145,11 @@ class Utils:
         res = requests.get("https://api.ipify.org")
         return res.text
     def getLocalIp():
-        hostname = socket.gethostname()
-        return socket.gethostbyname(hostname)
+        sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        sock.connect(("8.8.8.8", 80))
+        localIp = sock.getsockname()[0]
+        sock.close()
+        return localIp
     def isMyIp(ip):
         myPublicIp = Utils.getPublicIp()
         myLocalIp = Utils.getLocalIp()
@@ -144,7 +160,12 @@ class Server:
         with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as sock:
             cursor.execute("SELECT * FROM chats")
             chats = cursor.fetchall()
-            chatsDs:list[dict] = [{"uuid":chat[0], "name":chat[1], "timestamp":chat[2]} for chat in chats]
+            chatsDs:list[dict] = []
+            for peer in random.sample(chats, min(len(chats), maxPeersLength)):
+                if peer[4]:
+                    if not isLocalIp:
+                        continue
+                chatsDs.append({"stunIp": peer[1], "stunPort": peer[2], "natConeType": peer[3]})
             message = {
                 "m":"R",
                 "r":0,
@@ -175,7 +196,12 @@ class Server:
         with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as sock:
             cursor.execute("SELECT * FROM peers")
             peers = cursor.fetchall()
-            peersDs:list[dict] = [{"natConeType":message[3], "stunIp":message[1], "stunPort":message[2]} for message in peers]
+            peersDs:list[dict] = []
+            for peer in random.sample(peers, min(len(peers), maxPeersLength)):
+                if peer[4]:
+                    if not isLocalIp:
+                        continue
+                peersDs.append({"stunIp": peer[1], "stunPort": peer[2], "natConeType": peer[3]})
             message = {
                 "m":"R",
                 "r":0,
@@ -227,7 +253,7 @@ class Client:
                     }
                 }
                 sock.sendto(base64.b64encode(json.dumps(message).encode("utf-8")), (ip, port))
-                res, addr = sock.recvfrom(1024)
+                res, addr = sock.recvfrom(200*maxChats+120)
                 res = json.loads(base64.b64decode(res))
                 if res["m"] == "R" and res["r"] == "0":
                     chats[addr[0]] = res["c"]["chats"]
@@ -286,14 +312,17 @@ class Client:
             }
             sock.sendto(base64.b64encode(json.dumps(message).encode("utf-8")), (ip, port))
             try:
-                res = sock.recvfrom(1024)[0]
-                res = json.loads(base64.b64decode(res))
+                res = sock.recvfrom(130*maxPeers+120)[0]
+                res = json.loads(base64.b64decode(res.decode("utf-8")))
+                print(res)
                 if res["m"] == "R" and res["r"] == "0":
                     Utils.checkAndMergeStunDatas(res["c"]["peers"])
                     logger.debug(f"Get peers From:{ip}")
                 else:
+                    print("a")
                     logger.warning(f"Failed get peers From:{ip}")
             except Exception as e:
+                print(traceback.format_exc())
                 logger.error(f"Exception(get peers):{e}")
     def registerPeer(ip:str, port:int):
         with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as sock:
@@ -301,9 +330,8 @@ class Client:
             natConeType = stunInfo["natConeType"]
             stunIp = stunInfo["stunIp"]
             stunPort = stunInfo["stunPort"]
-            if not (natConeType and stunIp and stunPort):
-                return False
-            elif natConeType not in ["Restricted Cone", "Full Cone"]:
+            sourcePort = stunInfo["sourcePort"]
+            if natConeType not in ["Restricted Cone", "Full Cone"]:
                 return False
             message = {
                 "m":"r",
@@ -312,7 +340,8 @@ class Client:
                 "a":{
                     "natConeType":natConeType,
                     "stunIp":stunIp,
-                    "stunPort":stunPort
+                    "stunPort":stunPort,
+                    "sourcePort":sourcePort
                 }
             }
             sock.sendto(base64.b64encode(json.dumps(message).encode("utf-8")), (ip, port))
@@ -330,10 +359,10 @@ class Peer:
     def __init__(self):
         pass
     def listenForMessages(self):
-        stunPort = stunInfo["stunPort"]
-        logger.debug(f"Start Listen - 0.0.0.0:{stunPort}")
+        sourcePort = stunInfo["sourcePort"]
+        logger.debug(f"Start Listen - 0.0.0.0:{sourcePort}")
         with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as sock:
-            sock.bind(("0.0.0.0", stunPort))
+            sock.bind(("0.0.0.0", sourcePort))
             while True:
                 res, addr = sock.recvfrom(1024)
                 res = json.loads(base64.b64decode(res))
@@ -390,15 +419,17 @@ class Peer:
                 Client.getPeers(peer[1], peer[2])
             time.sleep(60)
     def start(self):
-        while True:
-            randomStunServer = random.choice(settings.settings["stunServers"])
-            natConeType, stunIp, stunPort = Utils.getStun(randomStunServer["ip"], randomStunServer["port"])
-            if not (natConeType and stunIp and stunPort):
-                continue
-            stunInfo["natConeType"] = natConeType
-            stunInfo["stunIp"] = stunIp
-            stunInfo["stunPort"] = stunPort
-            break
+        for port in range(30000, 40001):
+            if Utils.isPortAvailable(port):
+                stunInfo["sourcePort"] = port
+                randomStunServer = random.choice(settings.settings["stunServers"])
+                natConeType, stunIp, stunPort = Utils.getStun(randomStunServer["ip"], randomStunServer["port"], port)
+                if not (natConeType and stunIp and stunPort):
+                    continue
+                stunInfo["natConeType"] = natConeType
+                stunInfo["stunIp"] = stunIp
+                stunInfo["stunPort"] = stunPort
+                break
         threading.Thread(target=self.listenForMessages).start()
         for server in settings.settings["bootstrapNodes"]:
             Client.registerPeer(server["ip"], server["port"])
@@ -440,4 +471,3 @@ def start():
 
     except:
         conn.close()
-
