@@ -160,7 +160,7 @@ class Utils:
     def isMyIp(ip):
         myPublicIp = Utils.getPublicIp()
         myLocalIp = Utils.getLocalIp()
-        return ip == myPublicIp or ip == myLocalIp
+        return ip == myPublicIp or ip == myLocalIp or ipaddress.ip_address(ip).is_loopback
 
 class Server:
     def reqChatsList(addr, maxChatsLength:int):
